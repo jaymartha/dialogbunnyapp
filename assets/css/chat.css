@@ -26,6 +26,7 @@ body {
   display: grid;
   grid-template-columns: 320px 1fr;
   gap: 16px;
+  height: calc(100vh - 40px);
 }
 
 .side {
@@ -72,12 +73,14 @@ body {
 }
 
 .chat-panel {
+  position: relative;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 16px;
   display: grid;
-  grid-template-rows: auto auto auto 1fr auto;
-  min-height: calc(100vh - 40px);
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  height: 100%;
+  overflow: hidden;
 }
 
 .chat-header {
@@ -86,6 +89,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  background: #fff;
 }
 
 .chat-header h2 {
@@ -105,6 +109,7 @@ body {
   border-bottom: 1px solid var(--border);
   display: flex;
   gap: 8px;
+  background: #fff;
 }
 
 .toolbar button {
@@ -142,8 +147,9 @@ body {
 }
 
 .messages {
+  min-height: 0;
   padding: 16px;
-  overflow: auto;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -197,10 +203,11 @@ body {
 @media (max-width: 900px) {
   .chat-layout {
     grid-template-columns: 1fr;
+    height: auto;
   }
 
   .chat-panel {
-    min-height: 70vh;
+    height: 70vh;
   }
 
   .toolbar {

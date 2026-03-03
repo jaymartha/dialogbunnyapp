@@ -13,6 +13,12 @@ let assistantResponseBuffer = '';
 let lastInformationalText = '';
 let lastInformationalSentAt = 0;
 
+function scrollMessagesToBottom() {
+  const messages = document.getElementById('messages');
+  if (!messages) return;
+  messages.scrollTop = messages.scrollHeight;
+}
+
 function log(message, level = 'log') {
   console[level === 'error' ? 'error' : 'log'](message);
   if (window.electronAPI?.rendererLog) {
@@ -74,7 +80,7 @@ function appendMessage(role, content, options = {}) {
     item.textContent = content;
   }
   messages.appendChild(item);
-  messages.scrollTop = messages.scrollHeight;
+  scrollMessagesToBottom();
   return item;
 }
 
@@ -186,6 +192,7 @@ async function ensureConversationClient() {
     }
     assistantResponseBuffer += delta;
     assistantStreamingNode.innerHTML = formatSocketText(assistantResponseBuffer);
+    scrollMessagesToBottom();
   });
 
   conversationClient.onComplete(() => {
@@ -386,6 +393,7 @@ async function init() {
 
   updateListenButton();
   wireActions();
+  scrollMessagesToBottom();
 }
 
 init();
