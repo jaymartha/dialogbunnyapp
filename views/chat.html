@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chat Session</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/css/chat.css" />
+</head>
+<body>
+  <main class="chat-layout">
+    <aside class="side">
+      <h1 id="promptTitle">Session</h1>
+      <p id="promptDescription">Prompt details will appear here.</p>
+      <ul id="docList" class="meta-list"></ul>
+    </aside>
+
+    <section class="chat-panel">
+      <header class="chat-header">
+        <h2>Conversation</h2>
+        <span class="pill" id="permissionsPill">Checking permissions</span>
+      </header>
+
+      <div class="messages" id="messages">
+        <div class="msg bot">Session launched. Start chatting.</div>
+      </div>
+
+      <div class="composer">
+        <input id="messageInput" type="text" placeholder="Type your message..." />
+        <button id="sendBtn" type="button">Send</button>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="../assets/js/chat.js"></script>
+</body>
+</html>

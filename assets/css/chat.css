@@ -1,0 +1,154 @@
+:root {
+  --bg: #f8f5f0;
+  --panel: #fff;
+  --ink: #1f2937;
+  --muted: #6b7280;
+  --border: #ddd6c8;
+  --accent: #0f766e;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Manrope', sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+}
+
+.chat-layout {
+  width: min(1200px, 94vw);
+  margin: 20px auto;
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 16px;
+}
+
+.side {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  height: fit-content;
+}
+
+.side h1 {
+  font-family: 'Fraunces', serif;
+  font-size: 24px;
+  margin-bottom: 10px;
+}
+
+.side p {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.meta-list {
+  margin-top: 12px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.meta-list li {
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px;
+  background: #fffcf7;
+}
+
+.chat-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-height: calc(100vh - 40px);
+}
+
+.chat-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.chat-header h2 {
+  font-size: 16px;
+}
+
+.pill {
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 5px 8px;
+  background: #ccfbf1;
+  color: #0f766e;
+}
+
+.messages {
+  padding: 16px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.msg {
+  max-width: 80%;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.msg.bot {
+  background: #f3f4f6;
+}
+
+.msg.user {
+  background: #0f766e;
+  color: #fff;
+  margin-left: auto;
+}
+
+.composer {
+  border-top: 1px solid var(--border);
+  padding: 12px;
+  display: flex;
+  gap: 8px;
+}
+
+.composer input {
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.composer button {
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (max-width: 900px) {
+  .chat-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-panel {
+    min-height: 70vh;
+  }
+}

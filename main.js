@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, session, desktopCapturer } = require('electron');
 const path = require('path');
 const http = require('http');
 const url = require('url');
@@ -88,7 +88,7 @@ function startCallbackServer() {
   callbackServer = http.createServer(async (req, res) => {
     const parsedUrl = url.parse(req.url, true);
 
-    if (!parsedUrl.pathname.startsWith('/app/session/')) {
+    if (!parsedUrl.pathname.startsWith('/app/callback')) {
       res.writeHead(404);
       res.end('Not found');
       return;
@@ -214,8 +214,43 @@ ipcMain.handle('load-welcome', (event, userData) => {
   }
 });
 
+ipcMain.handle('load-chat', (event, sessionConfig) => {
+  if (mainWindow) {
+    mainWindow.loadFile(path.join(__dirname, 'views', 'chat.html'));
+    mainWindow.webContents.once('did-finish-load', () => {
+      mainWindow.webContents.send('session-config', sessionConfig);
+    });
+  }
+});
+
 // ─── APP LIFECYCLE ────────────────────────────────────────────────────────────
-app.whenReady().then(createWindow);
+app.whenReady().then(async () => {
+  // Allow media permission requests from our renderer.
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    if (permission === 'media' || permission === 'display-capture') {
+      callback(true);
+      return;
+    }
+
+    callback(false);
+  });
+
+  // Wire display-media capture for navigator.mediaDevices.getDisplayMedia.
+  session.defaultSession.setDisplayMediaRequestHandler(
+    async (_request, callback) => {
+      try {
+        const sources = await desktopCapturer.getSources({ types: ['screen'] });
+        callback({ video: sources[0] });
+      } catch (error) {
+        console.error('display capture source error:', error);
+        callback({});
+      }
+    },
+    { useSystemPicker: true },
+  );
+
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   stopCallbackServer();
