@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign In</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #06060d;
+      --surface: #0d0d1a;
+      --border: rgba(255,255,255,0.07);
+      --accent: #7c6af7;
+      --accent2: #4facfe;
+      --text: #e8e8f0;
+      --muted: #555570;
+      --error: #f87171;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+    }
+
+    /* Ambient background orbs */
+    .bg-orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(100px);
+      pointer-events: none;
+      opacity: 0.35;
+      animation: drift 12s ease-in-out infinite alternate;
+    }
+    .bg-orb-1 {
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, #7c6af7 0%, transparent 70%);
+      top: -150px; left: -150px;
+    }
+    .bg-orb-2 {
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, #4facfe 0%, transparent 70%);
+      bottom: -100px; right: -100px;
+      animation-delay: -6s;
+    }
+
+    @keyframes drift {
+      from { transform: translate(0, 0) scale(1); }
+      to   { transform: translate(30px, 20px) scale(1.05); }
+    }
+
+    /* Grid pattern overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+    }
+
+    .card {
+      position: relative;
+      width: 420px;
+      padding: 52px 48px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: 0 40px 100px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.03);
+      animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      opacity: 0;
+      transform: translateY(20px);
+    }
+
+    @keyframes slideUp {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Shimmer border */
+    .card::before {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      border-radius: 21px;
+      background: linear-gradient(135deg, rgba(124,106,247,0.4) 0%, transparent 50%, rgba(79,172,254,0.3) 100%);
+      z-index: -1;
+    }
+
+    .logo-ring {
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(124,106,247,0.2), rgba(79,172,254,0.2));
+      border: 1px solid rgba(124,106,247,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 28px;
+    }
+
+    .logo-ring svg {
+      width: 28px;
+      height: 28px;
+    }
+
+    h1 {
+      font-family: 'DM Serif Display', serif;
+      font-size: 28px;
+      font-weight: 400;
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+      line-height: 1.2;
+    }
+
+    h1 em {
+      font-style: italic;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 300;
+      line-height: 1.6;
+      margin-bottom: 36px;
+    }
+
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 28px 0;
+    }
+
+    /* Gmail OAuth button */
+    .btn-google {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 14px 20px;
+      background: #fff;
+      color: #1a1a1a;
+      border: none;
+      border-radius: 12px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+    }
+
+    .btn-google:hover {
+      background: #f5f5f5;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+    }
+
+    .btn-google:active {
+      transform: translateY(0);
+    }
+
+    .btn-google.loading {
+      pointer-events: none;
+      opacity: 0.7;
+    }
+
+    .btn-google svg {
+      flex-shrink: 0;
+    }
+
+    /* Waiting state */
+    .waiting-banner {
+      display: none;
+      margin-top: 20px;
+      padding: 14px 16px;
+      background: rgba(124,106,247,0.08);
+      border: 1px solid rgba(124,106,247,0.2);
+      border-radius: 10px;
+      font-size: 13px;
+      color: #a89ff5;
+      text-align: center;
+      line-height: 1.5;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .waiting-banner.visible { display: block; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.6; }
+    }
+
+    /* Error state */
+    .error-banner {
+      display: none;
+      margin-top: 16px;
+      padding: 12px 16px;
+      background: rgba(248,113,113,0.08);
+      border: 1px solid rgba(248,113,113,0.25);
+      border-radius: 10px;
+      font-size: 13px;
+      color: var(--error);
+      text-align: center;
+    }
+    .error-banner.visible { display: block; }
+
+    .footer-note {
+      margin-top: 28px;
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    .footer-note a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(26,26,26,0.3);
+      border-top-color: #1a1a1a;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-orb bg-orb-1"></div>
+  <div class="bg-orb bg-orb-2"></div>
+
+  <div class="card">
+    <div class="logo-ring">
+      <!-- Abstract logo -->
+      <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="14" cy="14" r="6" stroke="#7c6af7" stroke-width="1.5"/>
+        <circle cx="14" cy="14" r="11" stroke="#4facfe" stroke-width="1" stroke-dasharray="3 3"/>
+        <circle cx="14" cy="8" r="2" fill="#7c6af7" opacity="0.8"/>
+      </svg>
+    </div>
+
+    <h1>Welcome<br/>back to <em>Orbit</em></h1>
+    <p class="subtitle">Sign in to continue to your workspace.<br/>Your data stays yours, always.</p>
+
+    <button class="btn-google" id="googleBtn" onclick="handleGoogleLogin()">
+      <!-- Official Google "G" logo colours -->
+      <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+      <span id="btnText">Continue with Google</span>
+    </button>
+
+    <div class="waiting-banner" id="waitingBanner">
+      🔐 Browser opened — complete sign-in there.<br/>
+      This window will update automatically.
+    </div>
+
+    <div class="error-banner" id="errorBanner"></div>
+
+    <div class="divider"></div>
+
+    <p class="footer-note">
+      By continuing you agree to our <a href="#">Terms of Service</a><br/>
+      and acknowledge our <a href="#">Privacy Policy</a>.
+    </p>
+  </div>
+
+  <script>
+    let waiting = false;
+
+    async function handleGoogleLogin() {
+      if (waiting) return;
+      waiting = true;
+
+      const btn = document.getElementById('googleBtn');
+      const btnText = document.getElementById('btnText');
+      const waitingBanner = document.getElementById('waitingBanner');
+      const errorBanner = document.getElementById('errorBanner');
+
+      btn.classList.add('loading');
+      btn.innerHTML = '<div class="spinner"></div><span>Opening browser…</span>';
+      errorBanner.classList.remove('visible');
+
+      try {
+        await window.electronAPI.startOAuth();
+        waitingBanner.classList.add('visible');
+        btnText && (btnText.textContent = 'Waiting for sign-in…');
+      } catch (err) {
+        console.error(err);
+        resetButton();
+        errorBanner.textContent = 'Failed to open browser. Please try again.';
+        errorBanner.classList.add('visible');
+      }
+    }
+
+    function resetButton() {
+      waiting = false;
+      const btn = document.getElementById('googleBtn');
+      btn.classList.remove('loading');
+      btn.innerHTML = `
+        <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+        </svg>
+        <span>Continue with Google</span>`;
+    }
+
+    // Listen for OAuth result from main process
+    window.electronAPI.onOAuthSuccess((userData) => {
+      // Transition to welcome view
+      window.electronAPI.loadWelcome(userData);
+    });
+
+    window.electronAPI.onOAuthError((msg) => {
+      waiting = false;
+      resetButton();
+      document.getElementById('waitingBanner').classList.remove('visible');
+      const errorBanner = document.getElementById('errorBanner');
+      errorBanner.textContent = `Sign-in failed: ${msg}`;
+      errorBanner.classList.add('visible');
+    });
+  </script>
+</body>
+</html>

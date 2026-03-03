@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Welcome</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #06060d;
+      --surface: #0d0d1a;
+      --surface2: #11111f;
+      --border: rgba(255,255,255,0.07);
+      --accent: #7c6af7;
+      --accent2: #4facfe;
+      --accent3: #f472b6;
+      --text: #e8e8f0;
+      --muted: #555570;
+      --success: #34d399;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Background */
+    .bg-orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(120px);
+      pointer-events: none;
+      opacity: 0.2;
+    }
+    .bg-orb-1 {
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, #7c6af7 0%, transparent 70%);
+      top: -200px; right: -200px;
+    }
+    .bg-orb-2 {
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, #4facfe 0%, transparent 70%);
+      bottom: -100px; left: -100px;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+    }
+
+    /* Top nav */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 60px;
+      background: rgba(6,6,13,0.8);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 32px;
+      z-index: 100;
+      animation: fadeDown 0.5s ease forwards;
+    }
+
+    @keyframes fadeDown {
+      from { opacity: 0; transform: translateY(-10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'DM Serif Display', serif;
+      font-size: 18px;
+      letter-spacing: -0.3px;
+    }
+
+    .nav-logo-dot {
+      width: 8px; height: 8px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 50%;
+    }
+
+    .nav-user {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .avatar {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: white;
+      overflow: hidden;
+    }
+
+    .avatar img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+    }
+
+    /* Main content */
+    main {
+      flex: 1;
+      padding: 100px 48px 60px;
+      max-width: 900px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .welcome-section {
+      margin-bottom: 56px;
+      opacity: 0;
+      animation: slideUp 0.7s 0.1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .status-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      background: rgba(52,211,153,0.08);
+      border: 1px solid rgba(52,211,153,0.2);
+      border-radius: 100px;
+      font-size: 12px;
+      color: var(--success);
+      font-weight: 500;
+      margin-bottom: 20px;
+    }
+
+    .status-dot {
+      width: 6px; height: 6px;
+      background: var(--success);
+      border-radius: 50%;
+      animation: blink 2s ease-in-out infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    h1 {
+      font-family: 'DM Serif Display', serif;
+      font-size: clamp(36px, 5vw, 54px);
+      font-weight: 400;
+      letter-spacing: -1px;
+      line-height: 1.1;
+      margin-bottom: 16px;
+    }
+
+    h1 em {
+      font-style: italic;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .welcome-sub {
+      font-size: 16px;
+      color: var(--muted);
+      font-weight: 300;
+      line-height: 1.7;
+      max-width: 500px;
+    }
+
+    /* Stats row */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
+      opacity: 0;
+      animation: slideUp 0.7s 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    .stat-card {
+      padding: 24px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      position: relative;
+      overflow: hidden;
+      cursor: default;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+
+    .stat-card:hover {
+      border-color: rgba(124,106,247,0.3);
+      transform: translateY(-2px);
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0;
+      right: 0; height: 2px;
+      background: var(--bar-color, linear-gradient(90deg, var(--accent), var(--accent2)));
+    }
+
+    .stat-value {
+      font-family: 'DM Serif Display', serif;
+      font-size: 32px;
+      font-weight: 400;
+      margin-bottom: 4px;
+      letter-spacing: -1px;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    /* Profile card */
+    .profile-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      opacity: 0;
+      animation: slideUp 0.7s 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      margin-bottom: 32px;
+    }
+
+    .avatar-large {
+      width: 72px; height: 72px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'DM Serif Display', serif;
+      font-size: 28px;
+      color: white;
+      flex-shrink: 0;
+      overflow: hidden;
+      border: 2px solid rgba(124,106,247,0.3);
+    }
+
+    .avatar-large img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+    }
+
+    .profile-info { flex: 1; }
+
+    .profile-name {
+      font-family: 'DM Serif Display', serif;
+      font-size: 22px;
+      font-weight: 400;
+      margin-bottom: 4px;
+    }
+
+    .profile-email {
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    .profile-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      background: rgba(124,106,247,0.1);
+      border: 1px solid rgba(124,106,247,0.2);
+      border-radius: 100px;
+      font-size: 11px;
+      color: #a89ff5;
+      font-weight: 500;
+    }
+
+    /* Quick actions */
+    .actions-section {
+      opacity: 0;
+      animation: slideUp 0.7s 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    .section-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      font-weight: 500;
+      margin-bottom: 16px;
+    }
+
+    .actions-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .action-card {
+      padding: 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s, transform 0.15s;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+
+    .action-card:hover {
+      background: var(--surface2);
+      border-color: rgba(124,106,247,0.25);
+      transform: translateY(-1px);
+    }
+
+    .action-icon {
+      width: 36px; height: 36px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .action-title {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 3px;
+    }
+
+    .action-desc {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* Sign out */
+    .signout-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--muted);
+      cursor: pointer;
+      text-decoration: none;
+      transition: color 0.2s;
+      background: none;
+      border: none;
+      padding: 0;
+      margin-top: 24px;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .signout-link:hover { color: var(--text); }
+  </style>
+</head>
+<body>
+  <div class="bg-orb bg-orb-1"></div>
+  <div class="bg-orb bg-orb-2"></div>
+
+  <nav>
+    <div class="nav-logo">
+      <div class="nav-logo-dot"></div>
+      Orbit
+    </div>
+    <div class="nav-user">
+      <span id="navEmail">Loading…</span>
+      <div class="avatar" id="navAvatar">?</div>
+    </div>
+  </nav>
+
+  <main>
+    <!-- Welcome headline -->
+    <div class="welcome-section">
+      <div class="status-chip">
+        <div class="status-dot"></div>
+        Signed in via Google
+      </div>
+      <h1>Good to see you,<br/><em id="firstName">there</em> 👋</h1>
+      <p class="welcome-sub">Your workspace is ready. Pick up where you left off or explore something new.</p>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row">
+      <div class="stat-card" style="--bar-color: linear-gradient(90deg, #7c6af7, #4facfe)">
+        <div class="stat-value">12</div>
+        <div class="stat-label">Active Projects</div>
+      </div>
+      <div class="stat-card" style="--bar-color: linear-gradient(90deg, #4facfe, #34d399)">
+        <div class="stat-value">4</div>
+        <div class="stat-label">Collaborators</div>
+      </div>
+      <div class="stat-card" style="--bar-color: linear-gradient(90deg, #f472b6, #7c6af7)">
+        <div class="stat-value">98%</div>
+        <div class="stat-label">Uptime</div>
+      </div>
+    </div>
+
+    <!-- Profile card -->
+    <div class="profile-card">
+      <div class="avatar-large" id="avatarLarge">?</div>
+      <div class="profile-info">
+        <div class="profile-name" id="profileName">Loading…</div>
+        <div class="profile-email" id="profileEmail">Loading…</div>
+        <div class="profile-badge">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Google Verified
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick actions -->
+    <div class="actions-section">
+      <div class="section-label">Quick actions</div>
+      <div class="actions-grid">
+        <div class="action-card">
+          <div class="action-icon" style="background:rgba(124,106,247,0.12)">🚀</div>
+          <div>
+            <div class="action-title">New Project</div>
+            <div class="action-desc">Start something from scratch with a blank canvas.</div>
+          </div>
+        </div>
+        <div class="action-card">
+          <div class="action-icon" style="background:rgba(79,172,254,0.12)">📂</div>
+          <div>
+            <div class="action-title">Browse Files</div>
+            <div class="action-desc">View and manage all your workspace files.</div>
+          </div>
+        </div>
+        <div class="action-card">
+          <div class="action-icon" style="background:rgba(244,114,182,0.12)">🤝</div>
+          <div>
+            <div class="action-title">Invite Team</div>
+            <div class="action-desc">Share your workspace and collaborate in real-time.</div>
+          </div>
+        </div>
+        <div class="action-card">
+          <div class="action-icon" style="background:rgba(52,211,153,0.12)">⚙️</div>
+          <div>
+            <div class="action-title">Settings</div>
+            <div class="action-desc">Configure your account, integrations and notifications.</div>
+          </div>
+        </div>
+      </div>
+
+      <button class="signout-link" onclick="signOut()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Sign out
+      </button>
+    </div>
+  </main>
+
+  <script>
+    function populateUser(user) {
+      if (!user) return;
+
+      const first = (user.name || 'Friend').split(' ')[0];
+
+      document.getElementById('firstName').textContent = first;
+      document.getElementById('profileName').textContent = user.name || 'Unknown';
+      document.getElementById('profileEmail').textContent = user.email || '';
+      document.getElementById('navEmail').textContent = user.email || '';
+
+      // Avatar
+      const initials = (user.name || '?').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+
+      const navAvatar = document.getElementById('navAvatar');
+      const avatarLarge = document.getElementById('avatarLarge');
+
+      if (user.picture) {
+        navAvatar.innerHTML = `<img src="${user.picture}" alt="${user.name}" />`;
+        avatarLarge.innerHTML = `<img src="${user.picture}" alt="${user.name}" />`;
+      } else {
+        navAvatar.textContent = initials;
+        avatarLarge.textContent = initials;
+      }
+    }
+
+    // Receive user data from main process
+    window.electronAPI.onUserData(populateUser);
+
+    // Also handle case where data arrives before listener
+    // (won't normally happen but good to be safe)
+
+    function signOut() {
+      // Clear and go back to login
+      location.href = '../views/login.html';
+    }
+  </script>
+</body>
+</html>

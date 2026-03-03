@@ -1,0 +1,13 @@
+{
+  "name": "electron-gmail-oauth",
+  "version": "1.0.0",
+  "description": "Electron app with Gmail OAuth login",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "dependencies": {
+    "electron": "^28.0.0",
+    "express": "^4.18.2"
+  }
+}
