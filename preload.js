@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   conversationAppendQuestion: (payload) => ipcRenderer.invoke('conversation-append-question', payload),
   conversationAppendAnswer: (payload) => ipcRenderer.invoke('conversation-append-answer', payload),
   conversationEnd: (payload) => ipcRenderer.invoke('conversation-end', payload),
+  setWindowOpacity: (opacity) => ipcRenderer.invoke('set-window-opacity', { opacity }),
+  getWindowOpacity: () => ipcRenderer.invoke('get-window-opacity'),
 
   // Main → Renderer (event listeners)
   onOAuthSuccess: (callback) => ipcRenderer.on('oauth-success', (_event, data) => callback(data)),

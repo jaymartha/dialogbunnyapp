@@ -12,11 +12,58 @@ let assistantStreamingNode = null;
 let assistantResponseBuffer = '';
 let lastInformationalText = '';
 let lastInformationalSentAt = 0;
+let questionPreviewTimer = null;
+let currentFilter = 'all';
 
 function scrollMessagesToBottom() {
   const messages = document.getElementById('messages');
   if (!messages) return;
   messages.scrollTop = messages.scrollHeight;
+}
+
+function applyMessageFilter() {
+  const messages = document.querySelectorAll('#messages .msg');
+  messages.forEach((message) => {
+    const kind = message.dataset.kind || 'reply';
+    const shouldShow = currentFilter === 'all' || kind === currentFilter;
+    message.classList.toggle('msg-hidden', !shouldShow);
+  });
+  scrollMessagesToBottom();
+}
+
+function setFilter(filter) {
+  currentFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach((button) => {
+    const active = button.dataset.filter === filter;
+    button.classList.toggle('active', active);
+  });
+  applyMessageFilter();
+}
+
+function updateCompactMode() {
+  const compact = window.innerHeight < 760;
+  document.body.classList.toggle('compact', compact);
+  if (compact && currentFilter === 'all') {
+    setFilter('reply');
+  }
+}
+
+function showQuestionPreview(text) {
+  const wrapper = document.getElementById('questionPreview');
+  const content = document.getElementById('questionPreviewText');
+  if (!wrapper || !content) return;
+
+  wrapper.classList.remove('hidden');
+  content.textContent = text;
+}
+
+function clearQuestionPreview() {
+  const wrapper = document.getElementById('questionPreview');
+  const content = document.getElementById('questionPreviewText');
+  if (!wrapper || !content) return;
+
+  wrapper.classList.add('hidden');
+  content.textContent = '';
 }
 
 function log(message, level = 'log') {
@@ -74,12 +121,14 @@ function appendMessage(role, content, options = {}) {
   const messages = document.getElementById('messages');
   const item = document.createElement('div');
   item.className = `msg ${role}`;
+  item.dataset.kind = options.kind || (role === 'user' ? 'question' : 'reply');
   if (options.rich) {
     item.innerHTML = formatSocketText(content);
   } else {
     item.textContent = content;
   }
   messages.appendChild(item);
+  applyMessageFilter();
   scrollMessagesToBottom();
   return item;
 }
@@ -127,8 +176,7 @@ function renderSession(config) {
     setSpeechStatus(`token error - ${config.speechTokenError}`);
   }
 
-  const userFirstName = config.user?.name?.split(' ')[0] || 'there';
-  appendMessage('bot', `Hi ${userFirstName}. Prompt "${config.prompt.name}" is active.`);
+  // Intentionally do not push system intro messages into chat stream.
 }
 
 async function resolveSpeechToken() {
@@ -203,6 +251,7 @@ async function ensureConversationClient() {
     }
     assistantStreamingNode = null;
     assistantResponseBuffer = '';
+    clearQuestionPreview();
   });
 
   conversationClient.onError((error) => {
@@ -229,22 +278,30 @@ async function ensureSpeechClient() {
     if (!text) return;
     liveTranscript = text;
     document.getElementById('liveTranscriptText').textContent = text;
+    showQuestionPreview(text);
 
-    if (conversationClient && conversationId && text !== lastInformationalText) {
+    // Send information-only context only for finalized recognized speech.
+    if (conversationClient && conversationId && streamEnded) {
       const normalized = text.trim().replace(/\s+/g, ' ');
       const now = Date.now();
-      if (normalized === lastInformationalText && (now - lastInformationalSentAt) < 1500) {
-        return;
+      const isDuplicateInformational = normalized === lastInformationalText && (now - lastInformationalSentAt) < 1500;
+      if (!isDuplicateInformational) {
+        conversationClient.appendInformationalContext(conversationId, text).catch((err) => {
+          setSpeechStatus(`info send failed - ${err.message}`);
+        });
+        lastInformationalText = normalized;
+        lastInformationalSentAt = now;
       }
-      conversationClient.appendInformationalContext(conversationId, text).catch((err) => {
-        setSpeechStatus(`info send failed - ${err.message}`);
-      });
-      lastInformationalText = normalized;
-      lastInformationalSentAt = now;
     }
 
     if (streamEnded) {
       document.getElementById('messageInput').value = text;
+      if (questionPreviewTimer) {
+        clearTimeout(questionPreviewTimer);
+      }
+      questionPreviewTimer = window.setTimeout(() => {
+        clearQuestionPreview();
+      }, 1200);
     }
   });
 
@@ -271,6 +328,7 @@ async function toggleListening() {
       client.stopListening();
       isListening = false;
       setSpeechStatus('stopped (socket kept open)');
+      clearQuestionPreview();
       updateListenButton();
       return;
     }
@@ -307,7 +365,6 @@ async function captureAndUploadScreen() {
       timestamp: new Date().toISOString(),
     });
 
-    appendMessage('bot', 'Screen capture uploaded.');
     setSpeechStatus('screen capture uploaded');
   } catch (error) {
     setSpeechStatus(`screen capture failed - ${error.message}`);
@@ -325,9 +382,10 @@ async function askQuestionFromInput() {
 
   try {
     await ensureConversationClient();
-    appendMessage('user', text);
+    appendMessage('user', text, { kind: 'question' });
     await conversationClient.appendQuestion(conversationId, text);
     input.value = '';
+    clearQuestionPreview();
   } catch (error) {
     setSpeechStatus(`question send failed - ${error.message}`);
   }
@@ -349,6 +407,7 @@ async function endSession() {
   assistantStreamingNode = null;
   assistantResponseBuffer = '';
   lastInformationalText = '';
+  lastInformationalSentAt = 0;
   updateListenButton();
   setSpeechStatus('session ended');
 
@@ -367,6 +426,32 @@ function wireActions() {
       askQuestionFromInput();
     }
   });
+
+  document.addEventListener('keydown', (event) => {
+    const isShortcut = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'enter';
+    if (!isShortcut) return;
+    event.preventDefault();
+    askQuestionFromInput();
+  });
+
+  document.querySelectorAll('.filter-btn').forEach((button) => {
+    button.addEventListener('click', () => {
+      setFilter(button.dataset.filter || 'all');
+    });
+  });
+
+  const opacityRange = document.getElementById('opacityRange');
+  opacityRange.addEventListener('input', async (event) => {
+    const value = Number(event.target.value);
+    const normalized = value / 100;
+    try {
+      await window.electronAPI.setWindowOpacity(normalized);
+    } catch (error) {
+      log(`[chat] setWindowOpacity failed: ${error.message}`, 'error');
+    }
+  });
+
+  window.addEventListener('resize', updateCompactMode);
 }
 
 async function init() {
@@ -393,7 +478,18 @@ async function init() {
 
   updateListenButton();
   wireActions();
+  setFilter('all');
+  updateCompactMode();
   scrollMessagesToBottom();
+
+  try {
+    const data = await window.electronAPI.getWindowOpacity();
+    const initialPercent = Math.round((data.opacity || 1) * 100);
+    const opacityRange = document.getElementById('opacityRange');
+    opacityRange.value = String(initialPercent);
+  } catch (error) {
+    log(`[chat] getWindowOpacity failed: ${error.message}`, 'error');
+  }
 }
 
 init();

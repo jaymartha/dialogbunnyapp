@@ -29,16 +29,27 @@
         <button id="listenBtn" type="button">Start listening</button>
         <button id="screenCaptureBtn" type="button">Capture screen</button>
         <button id="endSessionBtn" type="button">End session</button>
+        <div class="opacity-control">
+          <label for="opacityRange">Visibility</label>
+          <input id="opacityRange" type="range" min="35" max="100" step="1" value="100" />
+        </div>
+        <div class="filter-group" id="chatFilterGroup">
+          <button type="button" data-filter="all" class="filter-btn active">All</button>
+          <button type="button" data-filter="question" class="filter-btn">Questions</button>
+          <button type="button" data-filter="reply" class="filter-btn">Replies</button>
+        </div>
       </div>
 
       <div class="live-transcript">
         <p class="live-label">Live speech transcript</p>
         <p id="liveTranscriptText">No speech detected yet.</p>
+        <div class="question-preview hidden" id="questionPreview">
+          <p class="live-label">Current question</p>
+          <p id="questionPreviewText"></p>
+        </div>
       </div>
 
-      <div class="messages" id="messages">
-        <div class="msg bot">Session launched. Start chatting.</div>
-      </div>
+      <div class="messages" id="messages"></div>
 
       <div class="composer">
         <input id="messageInput" type="text" placeholder="Type your message..." />
