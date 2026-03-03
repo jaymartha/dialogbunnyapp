@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loadWelcome: (userData) => ipcRenderer.invoke('load-welcome', userData),
   loadChat: (sessionConfig) => ipcRenderer.invoke('load-chat', sessionConfig),
   signOut: () => ipcRenderer.invoke('sign-out'),
+  getSpeechToken: () => ipcRenderer.invoke('get-speech-token'),
+  uploadScreenCapture: (payload) => ipcRenderer.invoke('upload-screen-capture', payload),
 
   // Main → Renderer (event listeners)
   onOAuthSuccess: (callback) => ipcRenderer.on('oauth-success', (_event, data) => callback(data)),

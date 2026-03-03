@@ -15,6 +15,7 @@
       <h1 id="promptTitle">Session</h1>
       <p id="promptDescription">Prompt details will appear here.</p>
       <ul id="docList" class="meta-list"></ul>
+      <p class="speech-status" id="speechStatus">Speech status: not initialized</p>
     </aside>
 
     <section class="chat-panel">
@@ -23,17 +24,28 @@
         <span class="pill" id="permissionsPill">Checking permissions</span>
       </header>
 
+      <div class="toolbar">
+        <button id="getResponseBtn" type="button">Get response</button>
+        <button id="listenBtn" type="button">Start listening</button>
+        <button id="screenCaptureBtn" type="button">Capture screen</button>
+      </div>
+
+      <div class="live-transcript">
+        <p class="live-label">Live speech transcript</p>
+        <p id="liveTranscriptText">No speech detected yet.</p>
+      </div>
+
       <div class="messages" id="messages">
         <div class="msg bot">Session launched. Start chatting.</div>
       </div>
 
       <div class="composer">
         <input id="messageInput" type="text" placeholder="Type your message..." />
-        <button id="sendBtn" type="button">Send</button>
       </div>
     </section>
   </main>
 
+  <script src="https://aka.ms/csspeech/jsbrowserpackageraw"></script>
   <script type="module" src="../assets/js/chat.js"></script>
 </body>
 </html>

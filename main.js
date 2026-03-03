@@ -10,29 +10,15 @@ const OAUTH_CALLBACK_PORT = 4000;
 const REDIRECT_URI = `http://localhost:${OAUTH_CALLBACK_PORT}/app/callback`;
 const OAUTH_SCOPES = 'openid email profile';
 const APP_API_BASE_URL = 'http://localhost:3000';
+const SPEECH_TOKEN_ENDPOINT = `${APP_API_BASE_URL}/api/speech/token`;
+const SCREEN_CAPTURE_ENDPOINT = `${APP_API_BASE_URL}/api/screen/capture`;
 
 
 let mainWindow;
 let callbackServer;
+let latestTokenData = null;
 
 // ─── SCREEN-SHARE PROTECTION ──────────────────────────────────────────────────
-// Root cause of "works first launch only":
-//   The Swift child-process approach runs in a SEPARATE process, so
-//   NSApplication.shared.windows is EMPTY — it has no connection to Electron's
-//   NSApplication instance. It only appeared to work the first time due to a
-//   lucky race with Electron's own setContentProtection initialisation.
-//
-// Correct approach:
-//   Call setContentProtection(true) — which invokes NSWindowSharingNone inside
-//   THIS process via Electron's Objective-C bindings — at every lifecycle point
-//   where Electron may silently reset it:
-//     1. Before loadFile (before any content renders)
-//     2. After ready-to-show (Electron resets during BrowserWindow init)
-//     3. After every did-finish-load (each navigation resets native flags)
-//     4. After focus (macOS resets on app foreground on some versions)
-//
-// No Swift binary, no child process, no compile step needed.
-
 function applyScreenProtection() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   mainWindow.setContentProtection(true);
@@ -115,6 +101,7 @@ function startCallbackServer() {
     try {
       const tokenData = await exchangeCodeForTokens(code);
       const userInfo = await fetchUserInfo(tokenData.access_token);
+      latestTokenData = tokenData;
       let appUser = null;
       let prompts = [];
       let userDocuments = [];
@@ -207,7 +194,6 @@ async function fetchUserInfo(accessToken) {
 }
 
 function buildAuthHeaders(tokenData) {
-  const accessToken = tokenData?.access_token || '';
   const idToken = tokenData?.id_token || '';
 
   return {
@@ -275,6 +261,19 @@ async function fetchDocumentsForUser(userId, tokenData) {
   return [];
 }
 
+async function fetchSpeechToken(tokenData) {
+  const response = await fetch(SPEECH_TOKEN_ENDPOINT, {
+    headers: buildAuthHeaders(tokenData),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Failed to fetch speech token (${response.status}): ${text}`);
+  }
+
+  return response.json();
+}
+
 // ─── IPC HANDLERS ─────────────────────────────────────────────────────────────
 ipcMain.handle('start-oauth', () => {
   startCallbackServer();
@@ -294,6 +293,7 @@ ipcMain.handle('start-oauth', () => {
 });
 
 ipcMain.handle('sign-out', () => {
+  latestTokenData = null;
   if (mainWindow) {
     mainWindow.loadFile(path.join(__dirname, 'views', 'login.html'));
   }
@@ -308,13 +308,54 @@ ipcMain.handle('load-welcome', (event, userData) => {
   }
 });
 
-ipcMain.handle('load-chat', (event, sessionConfig) => {
+ipcMain.handle('load-chat', async (event, sessionConfig) => {
   if (mainWindow) {
+    const enrichedSessionConfig = { ...sessionConfig };
+    if (latestTokenData) {
+      try {
+        enrichedSessionConfig.speech = await fetchSpeechToken(latestTokenData);
+      } catch (error) {
+        enrichedSessionConfig.speechTokenError = error.message;
+      }
+    } else {
+      enrichedSessionConfig.speechTokenError = 'No active auth token. Please sign in again.';
+    }
+
     mainWindow.loadFile(path.join(__dirname, 'views', 'chat.html'));
     mainWindow.webContents.once('did-finish-load', () => {
-      mainWindow.webContents.send('session-config', sessionConfig);
+      mainWindow.webContents.send('session-config', enrichedSessionConfig);
     });
   }
+});
+
+ipcMain.handle('get-speech-token', async () => {
+  if (!latestTokenData) {
+    throw new Error('No active auth token. Please sign in again.');
+  }
+
+  return fetchSpeechToken(latestTokenData);
+});
+
+ipcMain.handle('upload-screen-capture', async (_event, payload) => {
+  if (!latestTokenData) {
+    throw new Error('No active auth token. Please sign in again.');
+  }
+
+  const response = await fetch(SCREEN_CAPTURE_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...buildAuthHeaders(latestTokenData),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Failed to upload screen capture (${response.status}): ${text}`);
+  }
+
+  return response.json();
 });
 
 // ─── APP LIFECYCLE ────────────────────────────────────────────────────────────
