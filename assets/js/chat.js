@@ -1,18 +1,81 @@
-import { readSession, saveSession } from './shared/session.js';
+import { readSession, readUser, saveSession } from './shared/session.js';
 import { SpeechToText } from './speech/speech-to-text.js';
+import { ConversationClient } from './conversation/client.js';
 
 let currentSession = null;
 let speechClient = null;
+let conversationClient = null;
+let conversationId = null;
 let isListening = false;
 let liveTranscript = '';
+let assistantStreamingNode = null;
+let assistantResponseBuffer = '';
+let lastInformationalText = '';
+let lastInformationalSentAt = 0;
 
-function appendMessage(role, content) {
+function log(message, level = 'log') {
+  console[level === 'error' ? 'error' : 'log'](message);
+  if (window.electronAPI?.rendererLog) {
+    window.electronAPI.rendererLog({ level, message });
+  }
+}
+
+function escapeHtml(text) {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function formatInlineAndNewlines(text) {
+  const escaped = escapeHtml(text);
+  const bolded = escaped.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  return bolded.replace(/\n/g, '<br>');
+}
+
+function formatSocketText(text) {
+  const source = String(text || '');
+  let html = '';
+  let cursor = 0;
+  const codeFenceRegex = /```([a-zA-Z0-9_-]+)?\n?([\s\S]*?)```/g;
+  let match;
+
+  while ((match = codeFenceRegex.exec(source)) !== null) {
+    const start = match.index;
+    const end = codeFenceRegex.lastIndex;
+    const language = match[1] ? match[1].trim() : '';
+    const code = match[2] || '';
+
+    if (start > cursor) {
+      html += formatInlineAndNewlines(source.slice(cursor, start));
+    }
+
+    const langClass = language ? ` class="language-${escapeHtml(language)}"` : '';
+    html += `<pre><code${langClass}>${escapeHtml(code)}</code></pre>`;
+    cursor = end;
+  }
+
+  if (cursor < source.length) {
+    html += formatInlineAndNewlines(source.slice(cursor));
+  }
+
+  return html || '&nbsp;';
+}
+
+function appendMessage(role, content, options = {}) {
   const messages = document.getElementById('messages');
   const item = document.createElement('div');
   item.className = `msg ${role}`;
-  item.textContent = content;
+  if (options.rich) {
+    item.innerHTML = formatSocketText(content);
+  } else {
+    item.textContent = content;
+  }
   messages.appendChild(item);
   messages.scrollTop = messages.scrollHeight;
+  return item;
 }
 
 function setSpeechStatus(text) {
@@ -25,11 +88,18 @@ function updateListenButton() {
   listenBtn.classList.toggle('primary', isListening);
 }
 
+function createConversationId() {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+  return `conv_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
 function renderSession(config) {
   if (!config?.prompt) return;
+  log('[chat] renderSession called');
 
   currentSession = config;
   saveSession(config);
+  log(`[chat] session saved. has idToken: ${Boolean(config.googleIdToken)}`);
 
   document.getElementById('promptTitle').textContent = config.prompt.name;
   document.getElementById('promptDescription').textContent = config.prompt.description;
@@ -56,7 +126,7 @@ function renderSession(config) {
 }
 
 async function resolveSpeechToken() {
-  if (currentSession?.speech?.token) {
+  if (currentSession?.speech?.token || currentSession?.speech?.authToken || currentSession?.speech?.speech_token) {
     return currentSession.speech;
   }
 
@@ -74,6 +144,70 @@ function readTokenPayload(payload) {
   };
 }
 
+function readDocumentReferences(config) {
+  const docs = config?.documents || [];
+  if (docs.length) {
+    return docs.map((doc) => doc._id || doc.id).filter(Boolean);
+  }
+
+  return config?.prompt?.documentIds || [];
+}
+
+async function resolveConversationToken() {
+  if (currentSession?.googleIdToken) return currentSession.googleIdToken;
+  log('[chat] googleIdToken missing in session payload, requesting via IPC');
+  const token = await window.electronAPI.getGoogleIdToken();
+  currentSession.googleIdToken = token || null;
+  saveSession(currentSession);
+  log(`[chat] IPC token resolved: ${Boolean(token)}`);
+  return token;
+}
+
+async function ensureConversationClient() {
+  if (conversationClient && conversationId) return;
+  log('[chat] ensureConversationClient start');
+
+  const idToken = await resolveConversationToken();
+  if (!idToken) throw new Error('Google id token missing for conversation socket.');
+  log('[chat] conversation token ready');
+
+  conversationId = createConversationId();
+  log(`[chat] generated conversationId: ${conversationId}`);
+  conversationClient = new ConversationClient(idToken);
+
+  conversationClient.onStatus((status) => {
+    setSpeechStatus(`conversation socket ${status}`);
+  });
+
+  conversationClient.onDelta((delta) => {
+    if (!assistantStreamingNode) {
+      assistantStreamingNode = appendMessage('bot', '', { rich: true });
+      assistantResponseBuffer = '';
+    }
+    assistantResponseBuffer += delta;
+    assistantStreamingNode.innerHTML = formatSocketText(assistantResponseBuffer);
+  });
+
+  conversationClient.onComplete(() => {
+    if (assistantResponseBuffer && conversationClient && conversationId) {
+      conversationClient.appendAnswer(conversationId, assistantResponseBuffer).catch((err) => {
+        setSpeechStatus(`answer send failed - ${err.message}`);
+      });
+    }
+    assistantStreamingNode = null;
+    assistantResponseBuffer = '';
+  });
+
+  conversationClient.onError((error) => {
+    setSpeechStatus(`conversation socket error - ${error?.message || String(error)}`);
+  });
+
+  const initialPrompt = currentSession?.prompt?.promptText || currentSession?.prompt?.description || '';
+  const documentReferred = readDocumentReferences(currentSession);
+  log(`[chat] initiating conversation socket hasInitialPrompt=${Boolean(initialPrompt)} documentCount=${documentReferred.length}`);
+  await conversationClient.initiate(conversationId, initialPrompt, documentReferred);
+}
+
 async function ensureSpeechClient() {
   if (speechClient) return speechClient;
 
@@ -89,8 +223,20 @@ async function ensureSpeechClient() {
     liveTranscript = text;
     document.getElementById('liveTranscriptText').textContent = text;
 
+    if (conversationClient && conversationId && text !== lastInformationalText) {
+      const normalized = text.trim().replace(/\s+/g, ' ');
+      const now = Date.now();
+      if (normalized === lastInformationalText && (now - lastInformationalSentAt) < 1500) {
+        return;
+      }
+      conversationClient.appendInformationalContext(conversationId, text).catch((err) => {
+        setSpeechStatus(`info send failed - ${err.message}`);
+      });
+      lastInformationalText = normalized;
+      lastInformationalSentAt = now;
+    }
+
     if (streamEnded) {
-      appendMessage('user', text);
       document.getElementById('messageInput').value = text;
     }
   });
@@ -105,12 +251,13 @@ async function ensureSpeechClient() {
     }
   });
 
-  setSpeechStatus('ready');
+  setSpeechStatus('speech ready');
   return speechClient;
 }
 
 async function toggleListening() {
   try {
+    await ensureConversationClient();
     const client = await ensureSpeechClient();
 
     if (isListening) {
@@ -149,6 +296,7 @@ async function captureAndUploadScreen() {
     await window.electronAPI.uploadScreenCapture({
       image: dataUrl,
       promptId: currentSession?.prompt?.id || null,
+      sessionId: conversationId,
       timestamp: new Date().toISOString(),
     });
 
@@ -163,30 +311,78 @@ async function captureAndUploadScreen() {
   }
 }
 
+async function askQuestionFromInput() {
+  const input = document.getElementById('messageInput');
+  const text = input.value.trim() || liveTranscript;
+  if (!text) return;
+
+  try {
+    await ensureConversationClient();
+    appendMessage('user', text);
+    await conversationClient.appendQuestion(conversationId, text);
+    input.value = '';
+  } catch (error) {
+    setSpeechStatus(`question send failed - ${error.message}`);
+  }
+}
+
+async function endSession() {
+  if (speechClient) {
+    speechClient.closeCurrentSession();
+    speechClient = null;
+  }
+
+  if (conversationClient) {
+    await conversationClient.close();
+    conversationClient = null;
+  }
+
+  conversationId = null;
+  isListening = false;
+  assistantStreamingNode = null;
+  assistantResponseBuffer = '';
+  lastInformationalText = '';
+  updateListenButton();
+  setSpeechStatus('session ended');
+
+  const lastUserData = readUser();
+  await window.electronAPI.loadWelcome(lastUserData || null);
+}
+
 function wireActions() {
   document.getElementById('listenBtn').addEventListener('click', toggleListening);
   document.getElementById('screenCaptureBtn').addEventListener('click', captureAndUploadScreen);
+  document.getElementById('getResponseBtn').addEventListener('click', askQuestionFromInput);
+  document.getElementById('endSessionBtn').addEventListener('click', endSession);
 
-  document.getElementById('getResponseBtn').addEventListener('click', () => {
-    const input = document.getElementById('messageInput');
-    const text = input.value.trim() || liveTranscript;
-    if (!text) return;
-
-    appendMessage('user', text);
-    appendMessage('bot', 'Get response clicked. Wire this to your response API next.');
-    input.value = '';
+  document.getElementById('messageInput').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      askQuestionFromInput();
+    }
   });
 }
 
-function init() {
+async function init() {
+  log('[chat] init started');
+  window.electronAPI.onSessionConfig(async (sessionConfig) => {
+    log('[chat] session-config event received');
+    renderSession(sessionConfig);
+    try {
+      await ensureConversationClient();
+    } catch (error) {
+      setSpeechStatus(`conversation socket error - ${error.message}`);
+      log(`[chat] ensureConversationClient failed: ${error.message}`, 'error');
+    }
+  });
+
   const fallbackSession = readSession();
   if (fallbackSession) {
+    log('[chat] fallback session found');
     renderSession(fallbackSession);
   }
 
-  window.electronAPI.onSessionConfig((sessionConfig) => {
-    renderSession(sessionConfig);
-  });
+  await window.electronAPI.notifyChatReady();
+  log('[chat] chat-ready handshake sent');
 
   updateListenButton();
   wireActions();

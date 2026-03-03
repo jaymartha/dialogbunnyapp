@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, shell, session, desktopCapturer } = require('electron');
+const { io } = require('socket.io-client');
 const path = require('path');
 const http = require('http');
 const url = require('url');
@@ -17,6 +18,8 @@ const SCREEN_CAPTURE_ENDPOINT = `${APP_API_BASE_URL}/api/screen/capture`;
 let mainWindow;
 let callbackServer;
 let latestTokenData = null;
+let pendingChatConfig = null;
+const conversationSockets = new Map();
 
 // ─── SCREEN-SHARE PROTECTION ──────────────────────────────────────────────────
 function applyScreenProtection() {
@@ -310,21 +313,47 @@ ipcMain.handle('load-welcome', (event, userData) => {
 
 ipcMain.handle('load-chat', async (event, sessionConfig) => {
   if (mainWindow) {
+    console.log('[chat] load-chat invoked');
     const enrichedSessionConfig = { ...sessionConfig };
+    enrichedSessionConfig.googleIdToken = latestTokenData?.id_token || null;
+    console.log('[chat] id token available:', Boolean(enrichedSessionConfig.googleIdToken));
     if (latestTokenData) {
       try {
         enrichedSessionConfig.speech = await fetchSpeechToken(latestTokenData);
+        console.log('[chat] speech token fetched');
       } catch (error) {
         enrichedSessionConfig.speechTokenError = error.message;
+        console.error('[chat] speech token fetch failed:', error.message);
       }
     } else {
       enrichedSessionConfig.speechTokenError = 'No active auth token. Please sign in again.';
+      console.error('[chat] no latestTokenData available');
     }
 
+    pendingChatConfig = enrichedSessionConfig;
     mainWindow.loadFile(path.join(__dirname, 'views', 'chat.html'));
     mainWindow.webContents.once('did-finish-load', () => {
-      mainWindow.webContents.send('session-config', enrichedSessionConfig);
+      console.log('[chat] did-finish-load, waiting for chat-ready handshake');
     });
+  }
+});
+
+ipcMain.handle('chat-ready', () => {
+  console.log('[chat] renderer reported chat-ready');
+  if (mainWindow && pendingChatConfig) {
+    mainWindow.webContents.send('session-config', pendingChatConfig);
+    console.log('[chat] session-config sent after chat-ready');
+    pendingChatConfig = null;
+  }
+});
+
+ipcMain.handle('renderer-log', (_event, payload) => {
+  const level = payload?.level || 'log';
+  const message = payload?.message || '';
+  if (level === 'error') {
+    console.error(`[renderer] ${message}`);
+  } else {
+    console.log(`[renderer] ${message}`);
   }
 });
 
@@ -334,6 +363,10 @@ ipcMain.handle('get-speech-token', async () => {
   }
 
   return fetchSpeechToken(latestTokenData);
+});
+
+ipcMain.handle('get-google-id-token', () => {
+  return latestTokenData?.id_token || null;
 });
 
 ipcMain.handle('upload-screen-capture', async (_event, payload) => {
@@ -356,6 +389,126 @@ ipcMain.handle('upload-screen-capture', async (_event, payload) => {
   }
 
   return response.json();
+});
+
+function sendConversationChannel(channel, payload) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send(channel, payload);
+}
+
+ipcMain.handle('conversation-init', async (_event, payload) => {
+  const { sessionId, token, topic, initialPrompt, files } = payload || {};
+  if (!sessionId || !token || !topic) {
+    throw new Error('conversation-init missing required fields');
+  }
+
+  const existing = conversationSockets.get(sessionId);
+  if (existing) {
+    existing.disconnect();
+    conversationSockets.delete(sessionId);
+  }
+
+  const socket = io('ws://localhost:3000', {
+    transports: ['websocket', 'polling'],
+    extraHeaders: {
+      Authorization: `Bearer ${token}`,
+    },
+    auth: {
+      token,
+    },
+    query: {
+      token,
+    },
+    reconnection: true,
+    reconnectionAttempts: 10,
+    reconnectionDelay: 1000,
+  });
+
+  conversationSockets.set(sessionId, socket);
+  sendConversationChannel('conversation-status', { sessionId, status: 'connecting' });
+
+  socket.on('connect', () => {
+    sendConversationChannel('conversation-status', { sessionId, status: 'connected' });
+    const message = {
+      session_id: sessionId,
+      token,
+      type: 'session.create',
+      response: {
+        instructions: initialPrompt || 'Conversation initiated.',
+      },
+    };
+    if (Array.isArray(files) && files.length) {
+      message.response.files = files;
+    }
+    socket.emit(topic, message);
+  });
+
+  socket.on(topic, (event) => {
+    sendConversationChannel('conversation-event', { sessionId, event });
+  });
+
+  socket.on('disconnect', () => {
+    sendConversationChannel('conversation-status', { sessionId, status: 'disconnected' });
+  });
+
+  socket.on('connect_error', (error) => {
+    sendConversationChannel('conversation-error', { sessionId, message: error?.message || String(error) });
+  });
+
+  socket.on('error', (error) => {
+    sendConversationChannel('conversation-error', { sessionId, message: error?.message || String(error) });
+  });
+
+  return { ok: true };
+});
+
+ipcMain.handle('conversation-append-information', (_event, payload) => {
+  const { sessionId, topic, token, text } = payload || {};
+  const socket = conversationSockets.get(sessionId);
+  if (!socket) throw new Error('conversation socket not initialized');
+  socket.emit(topic, {
+    session_id: sessionId,
+    token,
+    type: 'session.information_only',
+    response: { instructions: text },
+  });
+  return { ok: true };
+});
+
+ipcMain.handle('conversation-append-question', (_event, payload) => {
+  const { sessionId, topic, token, text } = payload || {};
+  const socket = conversationSockets.get(sessionId);
+  if (!socket) throw new Error('conversation socket not initialized');
+  socket.emit(topic, {
+    session_id: sessionId,
+    token,
+    type: 'response.create',
+    response: { instructions: text },
+  });
+  return { ok: true };
+});
+
+ipcMain.handle('conversation-append-answer', (_event, payload) => {
+  const { sessionId, topic, token, text } = payload || {};
+  const socket = conversationSockets.get(sessionId);
+  if (!socket) throw new Error('conversation socket not initialized');
+  socket.emit(topic, {
+    session_id: sessionId,
+    token,
+    type: 'response.received',
+    response: { instructions: text },
+  });
+  return { ok: true };
+});
+
+ipcMain.handle('conversation-end', (_event, payload) => {
+  const sessionId = payload?.sessionId;
+  const socket = conversationSockets.get(sessionId);
+  if (socket) {
+    socket.disconnect();
+    conversationSockets.delete(sessionId);
+  }
+  return { ok: true };
 });
 
 // ─── APP LIFECYCLE ────────────────────────────────────────────────────────────
@@ -388,6 +541,8 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
+  conversationSockets.forEach((socket) => socket.disconnect());
+  conversationSockets.clear();
   stopCallbackServer();
   if (process.platform !== 'darwin') app.quit();
 });
