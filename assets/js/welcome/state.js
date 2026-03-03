@@ -1,5 +1,8 @@
 export const state = {
   user: null,
+  appUser: null,
+  appApiError: null,
+  userDocuments: [],
   micGranted: false,
   screenGranted: false,
   prompts: [],

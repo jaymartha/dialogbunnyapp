@@ -6,8 +6,11 @@ const url = require('url');
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
 const GOOGLE_CLIENT_SECRET = 'YOUR_GOOGLE_CLIENT_SECRET';
-const REDIRECT_URI = 'http://localhost:3000/app/session/1234';
+const OAUTH_CALLBACK_PORT = 4000;
+const REDIRECT_URI = `http://localhost:${OAUTH_CALLBACK_PORT}/app/callback`;
 const OAUTH_SCOPES = 'openid email profile';
+const APP_API_BASE_URL = 'http://localhost:3000';
+
 
 let mainWindow;
 let callbackServer;
@@ -112,6 +115,22 @@ function startCallbackServer() {
     try {
       const tokenData = await exchangeCodeForTokens(code);
       const userInfo = await fetchUserInfo(tokenData.access_token);
+      let appUser = null;
+      let prompts = [];
+      let userDocuments = [];
+      let appApiError = null;
+
+      try {
+        appUser = await fetchAppUser(userInfo.email, tokenData);
+        const normalizedAppUser = normalizeAppUser(appUser);
+        appUser = normalizedAppUser;
+        const appUserId = normalizedAppUser?._id || normalizedAppUser?.id || normalizedAppUser?.user_id;
+        prompts = appUserId ? await fetchPromptsForUser(appUserId, tokenData) : [];
+        userDocuments = appUserId ? await fetchDocumentsForUser(appUserId, tokenData) : [];
+      } catch (apiErr) {
+        appApiError = apiErr.message;
+        console.error('App bootstrap API error:', apiErr);
+      }
 
       res.writeHead(200, { 'Content-Type': 'text/html' });
       res.end(buildBrowserPage(
@@ -122,9 +141,15 @@ function startCallbackServer() {
 
       if (mainWindow) {
         mainWindow.webContents.send('oauth-success', {
-          name: userInfo.name,
-          email: userInfo.email,
-          picture: userInfo.picture,
+          oauthUser: {
+            name: userInfo.name,
+            email: userInfo.email,
+            picture: userInfo.picture,
+          },
+          appUser,
+          prompts,
+          userDocuments,
+          appApiError,
         });
         mainWindow.focus();
       }
@@ -136,8 +161,8 @@ function startCallbackServer() {
     }
   });
 
-  callbackServer.listen(3000, '127.0.0.1', () => {
-    console.log('OAuth callback server listening on http://localhost:3000');
+  callbackServer.listen(OAUTH_CALLBACK_PORT, '127.0.0.1', () => {
+    console.log(`OAuth callback server listening on http://localhost:${OAUTH_CALLBACK_PORT}`);
   });
 }
 
@@ -179,6 +204,75 @@ async function fetchUserInfo(accessToken) {
 
   if (!response.ok) throw new Error('Failed to fetch user info');
   return response.json();
+}
+
+function buildAuthHeaders(tokenData) {
+  const accessToken = tokenData?.access_token || '';
+  const idToken = tokenData?.id_token || '';
+
+  return {
+    Authorization: `Bearer ${idToken}`
+  };
+}
+
+function normalizeAppUser(appUser) {
+  if (!appUser || typeof appUser !== 'object') return appUser;
+  if (appUser.user && typeof appUser.user === 'object') return appUser.user;
+  if (appUser.data && typeof appUser.data === 'object') return appUser.data;
+  return appUser;
+}
+
+async function fetchAppUser(email, tokenData) {
+  const response = await fetch(`${APP_API_BASE_URL}/api/user`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...buildAuthHeaders(tokenData),
+    },
+    body: JSON.stringify({
+      email,
+      user_type: 'google',
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Failed to fetch app user (${response.status}): ${text}`);
+  }
+
+  return response.json();
+}
+
+async function fetchPromptsForUser(userId, tokenData) {
+  const response = await fetch(`${APP_API_BASE_URL}/api/prompt/all/${encodeURIComponent(String(userId))}`, {
+    headers: buildAuthHeaders(tokenData),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Failed to fetch prompts (${response.status}): ${text}`);
+  }
+
+  const data = await response.json();
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data.prompts)) return data.prompts;
+  if (Array.isArray(data.items)) return data.items;
+  return [];
+}
+
+async function fetchDocumentsForUser(userId, tokenData) {
+  const response = await fetch(`${APP_API_BASE_URL}/api/document/all/${encodeURIComponent(String(userId))}`, {
+    headers: buildAuthHeaders(tokenData),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Failed to fetch documents (${response.status}): ${text}`);
+  }
+
+  const data = await response.json();
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data.documents)) return data.documents;
+  if (Array.isArray(data.items)) return data.items;
+  return [];
 }
 
 // ─── IPC HANDLERS ─────────────────────────────────────────────────────────────

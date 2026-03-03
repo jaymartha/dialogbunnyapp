@@ -80,8 +80,7 @@ function renderPromptDetails() {
     const li = document.createElement('li');
     li.innerHTML = `
       <span class="doc-name">${doc.name}</span>
-      <span class="doc-meta">ID: ${doc.id} | Type: ${doc.type}</span>
-      <span class="doc-meta">${doc.description}</span>
+      <span class="doc-meta">Type: ${doc.type}</span>
     `;
     documentList.appendChild(li);
   });

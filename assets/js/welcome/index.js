@@ -1,4 +1,4 @@
-import { fetchDocumentById, fetchPrompts } from './api.js';
+import { normalizePrompt } from './api.js';
 import { requestMicrophoneAccess, requestScreenAccess } from './permissions.js';
 import { state, setState } from './state.js';
 import { renderAll, showPromptError, showPromptLoadingError, showPromptsLoaded } from './ui.js';
@@ -7,26 +7,49 @@ import { readUser, saveSession, saveUser } from '../shared/session.js';
 function bindUserData() {
   const fallbackUser = readUser();
   if (fallbackUser) {
-    setState({ user: fallbackUser });
+    const prompts = Array.isArray(fallbackUser.prompts) ? fallbackUser.prompts.map(normalizePrompt) : [];
+    setState({
+      user: fallbackUser.oauthUser || fallbackUser,
+      appUser: fallbackUser.appUser || null,
+      appApiError: fallbackUser.appApiError || null,
+      userDocuments: Array.isArray(fallbackUser.userDocuments) ? fallbackUser.userDocuments : [],
+      prompts,
+    });
+    if (prompts.length) {
+      showPromptsLoaded();
+    } else if (fallbackUser.appApiError) {
+      showPromptLoadingError();
+      showPromptError(`Login succeeded, but app setup failed: ${fallbackUser.appApiError}`);
+    }
     renderAll();
   }
 
   window.electronAPI.onUserData((userData) => {
-    setState({ user: userData });
+    const oauthUser = userData?.oauthUser || userData;
+    const prompts = Array.isArray(userData?.prompts) ? userData.prompts.map(normalizePrompt) : [];
+
+    setState({
+      user: oauthUser,
+      appUser: userData?.appUser || null,
+      appApiError: userData?.appApiError || null,
+      userDocuments: Array.isArray(userData?.userDocuments) ? userData.userDocuments : [],
+      prompts,
+    });
+
     saveUser(userData);
+    if (prompts.length) {
+      showPromptsLoaded();
+      showPromptError('');
+    } else {
+      showPromptLoadingError();
+      if (userData?.appApiError) {
+        showPromptError(`Login succeeded, but app setup failed: ${userData.appApiError}`);
+      } else {
+        showPromptError('No prompts found for this user.');
+      }
+    }
     renderAll();
   });
-}
-
-async function loadPrompts() {
-  try {
-    const prompts = await fetchPrompts();
-    setState({ prompts });
-    showPromptsLoaded();
-  } catch (error) {
-    showPromptLoadingError();
-    showPromptError(error.message);
-  }
 }
 
 async function handlePromptSelection(promptId) {
@@ -42,9 +65,18 @@ async function handlePromptSelection(promptId) {
   }
 
   try {
-    const documents = await Promise.all(selectedPrompt.documentIds.map((id) => fetchDocumentById(id)));
+    const idSet = new Set(selectedPrompt.documentIds.map(String));
+    const documents = (state.userDocuments || []).filter((doc) => idSet.has(String(doc._id || doc.id)));
     setState({ documents });
-    showPromptError('');
+
+    const foundIds = new Set(documents.map((doc) => String(doc._id || doc.id)));
+    const missingCount = selectedPrompt.documentIds.filter((id) => !foundIds.has(String(id))).length;
+
+    if (missingCount > 0) {
+      showPromptError(`${missingCount} linked document(s) were not found in your document library.`);
+    } else {
+      showPromptError('');
+    }
     renderAll();
   } catch (error) {
     showPromptError(`Failed to load document details: ${error.message}`);
@@ -96,11 +128,10 @@ function wireActions() {
   });
 }
 
-async function init() {
+function init() {
   bindUserData();
   renderAll();
   wireActions();
-  await loadPrompts();
 }
 
 init();
