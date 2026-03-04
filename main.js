@@ -21,6 +21,11 @@ let latestTokenData = null;
 let pendingChatConfig = null;
 const conversationSockets = new Map();
 
+function setSessionForegroundMode(enabled) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.setAlwaysOnTop(Boolean(enabled), enabled ? 'floating' : 'normal');
+}
+
 // ─── SCREEN-SHARE PROTECTION ──────────────────────────────────────────────────
 function applyScreenProtection() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -45,6 +50,7 @@ function createWindow() {
     backgroundColor: '#0a0a0f',
     show: false,
   });
+  setSessionForegroundMode(false);
 
   // 1. Apply before any content is loaded
   applyScreenProtection();
@@ -297,12 +303,14 @@ ipcMain.handle('start-oauth', () => {
 
 ipcMain.handle('sign-out', () => {
   latestTokenData = null;
+  setSessionForegroundMode(false);
   if (mainWindow) {
     mainWindow.loadFile(path.join(__dirname, 'views', 'login.html'));
   }
 });
 
 ipcMain.handle('load-welcome', (event, userData) => {
+  setSessionForegroundMode(false);
   if (mainWindow) {
     mainWindow.loadFile(path.join(__dirname, 'views', 'welcome.html'));
     mainWindow.webContents.once('did-finish-load', () => {
@@ -313,6 +321,7 @@ ipcMain.handle('load-welcome', (event, userData) => {
 
 ipcMain.handle('load-chat', async (event, sessionConfig) => {
   if (mainWindow) {
+    setSessionForegroundMode(true);
     console.log('[chat] load-chat invoked');
     const enrichedSessionConfig = { ...sessionConfig };
     enrichedSessionConfig.googleIdToken = latestTokenData?.id_token || null;
@@ -389,6 +398,22 @@ ipcMain.handle('upload-screen-capture', async (_event, payload) => {
   }
 
   return response.json();
+});
+
+ipcMain.handle('set-window-opacity', (_event, payload) => {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    throw new Error('window unavailable');
+  }
+
+  const raw = Number(payload?.opacity);
+  const clamped = Number.isFinite(raw) ? Math.min(1, Math.max(0.35, raw)) : 1;
+  mainWindow.setOpacity(clamped);
+  return { opacity: clamped };
+});
+
+ipcMain.handle('get-window-opacity', () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return { opacity: 1 };
+  return { opacity: mainWindow.getOpacity() };
 });
 
 function sendConversationChannel(channel, payload) {
@@ -513,6 +538,10 @@ ipcMain.handle('conversation-end', (_event, payload) => {
 
 // ─── APP LIFECYCLE ────────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
+  if (process.platform === 'darwin' && app.dock) {
+    app.dock.hide();
+  }
+
   // Allow media permission requests from our renderer.
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
     if (permission === 'media' || permission === 'display-capture') {
